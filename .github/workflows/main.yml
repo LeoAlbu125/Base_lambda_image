@@ -35,11 +35,11 @@ jobs:
         aws configure set region ${{ secrets.AWS_REGION }}
     - name: Build and push Docker image
       env:
-
+        ECR_REPO : ${{ secrets.AWS_ECR_REPO }}
         ECR_REGISTRY: ${{ secrets.AWS_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
       run: |
-        aws ecr create-repository --repository-name lambda_base_image --region ${{ secrets.AWS_REGION }}
+        aws ecr create-repository --repository-name $ECR_REPO --region ${{ secrets.AWS_REGION }}
         aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin $ECR_REGISTRY
-        docker build -t lambda_base_image .
-        docker tag lambda_base_image:latest $ECR_REGISTRY/lambda_base_image:latest
-        docker push $ECR_REGISTRY/lambda_base_image:latest
+        docker build -t $ECR_REPO .
+        docker tag $ECR_REPO:latest $ECR_REGISTRY/$ECR_REPO:latest
+        docker push $ECR_REGISTRY/$ECR_REPO:latest
