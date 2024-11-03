@@ -9,36 +9,62 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     services:
-        docker:
-          image: docker:20.10
-          options: >-
-            --privileged
+      docker:
+        image: docker:20.10
+        options: >-
+          --privileged
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
-    
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v1
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    - name: Install AWS CLI
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y awscli
-        
-    - name: Configure AWS credentials
-      env:
-        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_LOGIN }}
-        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET }}
-      run: |
-        aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
-        aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
-        aws configure set region ${{ secrets.AWS_REGION }}
-    - name: Build and push Docker image
-      env:
-        ECR_REPO : ${{ secrets.AWS_ECR_REPO }}
-        ECR_REGISTRY: ${{ secrets.AWS_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
-      run: |
-        aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin $ECR_REGISTRY
-        docker build -t $ECR_REPO .
-        docker tag $ECR_REPO:latest $ECR_REGISTRY/$ECR_REPO:latest
-        docker push $ECR_REGISTRY/$ECR_REPO:latest
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Install AWS CLI
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y awscli
+
+      - name: Configure AWS credentials
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_LOGIN }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET }}
+        run: |
+          aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+          aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+          aws configure set region ${{ secrets.AWS_REGION }}
+
+      - name: Get remote image digest
+        id: get_remote_digest
+        run: |
+          echo "Getting the remote image digest..."
+          remote_digest=$(aws ecr describe-images --repository-name ${{ secrets.AWS_ECR_REPO }} --query 'imageDetails[?imageTags[0]==`latest`].imageDigest' --output text)
+          echo "REMOTE_DIGEST=$remote_digest" >> $GITHUB_ENV
+
+      - name: Build Docker image
+        env:
+          ECR_REPO: ${{ secrets.AWS_ECR_REPO }}
+        run: |
+          docker build -t $ECR_REPO .
+
+      - name: Get local image digest
+        id: get_local_digest
+        run: |
+          local_digest=$(docker inspect --format='{{index .RepoDigests 0}}' $ECR_REPO:latest | cut -d '@' -f 2)
+          echo "Local Image Digest: $local_digest"
+          echo "LOCAL_DIGEST=$local_digest" >> $GITHUB_ENV
+
+      - name: Compare and Push Docker image
+        env:
+          ECR_REPO: ${{ secrets.AWS_ECR_REPO }}
+          ECR_REGISTRY: ${{ secrets.AWS_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
+        run: |
+          echo "Comparing local and remote image digests..."
+          if [ "$LOCAL_DIGEST" == "$REMOTE_DIGEST" ]; then
+              echo "The local image matches the remote image. No need to push."
+          else
+              echo "The local image does not match the remote image. Proceeding to push."
+              aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin $ECR_REGISTRY
+              docker tag $ECR_REPO:latest $ECR_REGISTRY/$ECR_REPO:latest
+              docker push $ECR_REGISTRY/$ECR_REPO:latest
+          fi
