@@ -3,3 +3,4 @@ requests
 awswrangler
 s3fs
 snowflake-connector-python
+datetime
