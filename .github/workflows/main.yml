@@ -39,6 +39,6 @@ jobs:
         ECR_REGISTRY: ${{ secrets.AWS_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
       run: |
         aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin $ECR_REGISTRY
-        docker build -t ECR_REPOSITORY .
-        docker tag ECR_REPOSITORY:latest $ECR_REGISTRY/ECR_REPOSITORY:latest
+        docker build -t $ECR_REPOSITORY .
+        docker tag $ECR_REPOSITORY:latest $ECR_REGISTRY/$ECR_REPOSITORY:latest
         docker push $ECR_REGISTRY/ECR_REPOSITORY:latest
