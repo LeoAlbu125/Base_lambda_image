@@ -3,8 +3,7 @@ import os
 def lambda_handler(event, context):
     cwd = os.path.dirname(__file__)
     file_path = os.path.join(cwd, "test.txt")
-    print(cwd)
-    print(file_path)
+
     try:
         with open(file_path, 'r') as file:
             content = file.read()
@@ -13,6 +12,8 @@ def lambda_handler(event, context):
         print("Error reading file:", e)
     # You can return a response if needed
     return {
+        'work dir':cwd,
+        'file path':file_path,
         'statusCode': 200,
         'body': 'Check CloudWatch logs for the printed message.'
     }
